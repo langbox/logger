@@ -2,6 +2,12 @@
 
 ## 使用说明
 
+### 获取当前包的默认实例
+
+```
+var log *logrus.Logger = logger.Logger
+```
+
 ### 简单使用
 
 ```

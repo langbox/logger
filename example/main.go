@@ -1,6 +1,6 @@
 package main
 
-import "github.com/haobird/logger"
+import "github.com/langbox/logger"
 
 func main() {
 	logger.Debug("xxx")
