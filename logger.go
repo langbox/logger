@@ -30,6 +30,7 @@ type Cfg struct {
 	RotateDate    int    `yaml:"lrotate_date"`
 	RotateSize    int    `yaml:"rotate_size"`
 	BackupCount   int    `yaml:"backup_count"`
+	Compress      bool   `yaml:"compress"`
 }
 
 // Logger is the global variable
@@ -44,10 +45,12 @@ var definition *Cfg = DefaultDefinition()
 
 // constant values for logrotate parameters
 const (
+	File              = "log/chassis.log"
 	RollingPolicySize = "size"
-	LogRotateDate     = 1
-	LogRotateSize     = 10
-	LogBackupCount    = 7
+	RotateDate        = 7
+	RotateSize        = 100
+	BackupCount       = 7
+	Compress          = true
 )
 
 //InitWithConfig 初始化
@@ -58,7 +61,7 @@ func InitWithConfig(def *Cfg) (*logrus.Logger, error) {
 
 func init() {
 	// Logger = logrus.New()
-	Logger.SetFormatter(&logrus.JSONFormatter{})
+	// Logger.SetFormatter(&logrus.JSONFormatter{})
 	Logger.SetOutput(os.Stdout)
 	Logger.SetLevel(logrus.DebugLevel)
 }
@@ -109,9 +112,10 @@ func Init() error {
 			f.Close()
 			file = &lumberjack.Logger{
 				Filename:   filePath,
-				MaxSize:    100,  // megabytes
-				MaxBackups: 30,   //days
-				Compress:   true, // disabled by default
+				MaxSize:    definition.RotateSize,  // megabytes
+				MaxBackups: definition.BackupCount, // count
+				MaxAge:     definition.RotateDate,  //days
+				Compress:   definition.Compress,    // disabled by default
 			}
 			writers = append(writers, file)
 		}
@@ -215,13 +219,14 @@ func DefaultDefinition() *Cfg {
 	cfg := Cfg{
 		Writers:       "stdout,file",
 		Level:         "DEBUG",
-		File:          "log/chassis.log",
-		FormatText:    false,
-		Color:         false,
+		File:          File,
+		FormatText:    true,
+		Color:         true,
 		RollingPolicy: RollingPolicySize,
-		RotateDate:    1,
-		RotateSize:    10,
-		BackupCount:   7,
+		RotateDate:    RotateDate,
+		RotateSize:    RotateSize,
+		BackupCount:   BackupCount,
+		Compress:      Compress,
 	}
 
 	return &cfg

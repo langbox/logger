@@ -31,10 +31,10 @@ cfg := logger.Cfg{
 		File:          "log/chassis.log",
 		FormatText:    false,
 		Color:         false,
-		RollingPolicy: RollingPolicySize,
 		RotateDate:    1,
 		RotateSize:    10,
 		BackupCount:   7,
+		Compress: 	   true,
 	}
 
 logger.InitWithConfig(&cfg)
