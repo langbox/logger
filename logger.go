@@ -10,15 +10,6 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// 日志库
-
-// * 实现功能
-// * 支持多种输出方式stdout/file
-// * 支持输出为json 或 plaintext
-// * 支持彩色输出
-// * 支持log rotate
-// *
-
 //Cfg is the struct for log information
 type Cfg struct {
 	Writers       string `yaml:"writers"`
@@ -45,7 +36,7 @@ var definition *Cfg = DefaultDefinition()
 
 // constant values for logrotate parameters
 const (
-	File              = "log/chassis.log"
+	File              = ""
 	RollingPolicySize = "size"
 	RotateDate        = 7
 	RotateSize        = 100
@@ -61,7 +52,11 @@ func InitWithConfig(def *Cfg) (*logrus.Logger, error) {
 
 func init() {
 	// Logger = logrus.New()
-	// Logger.SetFormatter(&logrus.JSONFormatter{})
+	Logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		// ForceColors:     true,
+	})
 	Logger.SetOutput(os.Stdout)
 	Logger.SetLevel(logrus.DebugLevel)
 }
@@ -87,6 +82,11 @@ func Init() error {
 		}
 	}
 	Logger.SetFormatter(formatter)
+
+	// 如果文件路径 为空，则忽略 文件输出
+	if definition.File == "" {
+		return nil
+	}
 
 	// 默认只有 stdout 输出
 	writers := []io.Writer{os.Stdout}
@@ -217,11 +217,11 @@ func createFile(localPath, outputpath string) {
 //DefaultDefinition 预定义
 func DefaultDefinition() *Cfg {
 	cfg := Cfg{
-		Writers:       "stdout,file",
+		Writers:       "stdout",
 		Level:         "DEBUG",
 		File:          File,
 		FormatText:    true,
-		Color:         true,
+		Color:         false,
 		RollingPolicy: RollingPolicySize,
 		RotateDate:    RotateDate,
 		RotateSize:    RotateSize,
