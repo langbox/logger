@@ -42,10 +42,25 @@ type Cfg struct {
 // var Logger *logrus.Logger
 var Logger = logrus.New()
 
+func New(def *Cfg) (*logrus.Logger, error) {
+	logger := logrus.New()
+	err := initWithConfig(logger, def)
+	return logger, err
+}
+
+func Init(def *Cfg) error {
+	return initWithConfig(Logger, def)
+}
+
 //InitWithConfig 初始化
 func InitWithConfig(def *Cfg) (*logrus.Logger, error) {
 	err := initWithConfig(Logger, def)
 	return Logger, err
+}
+
+//initConfig
+func initConfig(def *Cfg) {
+
 }
 
 func initWithConfig(logger *logrus.Logger, def *Cfg) error {
