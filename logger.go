@@ -3,130 +3,138 @@ package logger
 import (
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
+	"time"
 
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+const (
+	File           = ""
+	Level          = "debug"
+	RotatePolicy   = "size" // size/daily/time
+	RotateTime     = 0      // Hour
+	RotateSize     = 0      // megabytes
+	MaxBackup      = 0      // number
+	MaxAge         = 0      // days
+	FormatText     = false
+	FormatColor    = false
+	FormatCompress = false
+)
+
 //Cfg is the struct for log information
 type Cfg struct {
-	Writers       string `yaml:"writers"`
-	Level         string `yaml:"level"`
-	File          string `yaml:"file"`
-	FormatText    bool   `yaml:"format_text"`
-	Color         bool   `yaml:"color"`
-	RollingPolicy string `yaml:"rollingPolicy"`
-	RotateDate    int    `yaml:"lrotate_date"`
-	RotateSize    int    `yaml:"rotate_size"`
-	BackupCount   int    `yaml:"backup_count"`
-	Compress      bool   `yaml:"compress"`
+	Level        string // 日志级别
+	File         string // 文件路径
+	RotatePolicy string // 分割策略 size/daily/time
+	RotateTime   int    // 分割日期(单位 小时)
+	RotateSize   int    // 分割大小(单位 M)
+	MaxBackup    int    // 备份文件数目
+	MaxAge       int    // 文件有效期(单位 天)
+	FormatText   bool   // 日志格式
+	FormatColor  bool   // 强制彩色
+	FormatReport bool   // 是否显示 calling method
+	// FormatCompress bool   // 是否压缩
 }
 
 // Logger is the global variable
 // var Logger *logrus.Logger
 var Logger = logrus.New()
 
-// filePath log file path
-var filePath string
-
-// definition is having the information about loging
-var definition *Cfg = DefaultDefinition()
-
-// constant values for logrotate parameters
-const (
-	File              = ""
-	RollingPolicySize = "size"
-	RotateDate        = 7
-	RotateSize        = 100
-	BackupCount       = 7
-	Compress          = true
-)
-
 //InitWithConfig 初始化
 func InitWithConfig(def *Cfg) (*logrus.Logger, error) {
-	definition = def
-	return Logger, Init()
+	err := initWithConfig(Logger, def)
+	return Logger, err
 }
 
-func init() {
-	// Logger = logrus.New()
-	Logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-		// ForceColors:     true,
-	})
-	Logger.SetOutput(os.Stdout)
-	Logger.SetLevel(logrus.DebugLevel)
-}
-
-//Init 初始化
-func Init() error {
-	// Logger = logrus.New()
+func initWithConfig(logger *logrus.Logger, def *Cfg) error {
+	logger.SetReportCaller(def.FormatReport)
 
 	//  只输出不低于当前级别是日志数据
-	level, err := logrus.ParseLevel(definition.Level)
-	Logger.SetLevel(level)
+	levelText := Level
+	if def.Level != "" {
+		levelText = def.Level
+	}
+
+	level, err := logrus.ParseLevel(levelText)
+	if err != nil {
+		return err
+	}
+	logger.SetLevel(level)
 
 	// 输出日志格式
 	var formatter logrus.Formatter
 	formatter = &logrus.JSONFormatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 	}
-	if definition.FormatText {
+
+	if def.FormatText {
 		formatter = &logrus.TextFormatter{
 			FullTimestamp:   true,
 			TimestampFormat: "2006-01-02 15:04:05",
-			ForceColors:     definition.Color,
+			ForceColors:     def.FormatColor,
 		}
 	}
-	Logger.SetFormatter(formatter)
 
-	// 如果文件路径 为空，则忽略 文件输出
-	if definition.File == "" {
+	logger.SetFormatter(formatter)
+
+	if def.File == "" {
 		return nil
 	}
 
-	// 默认只有 stdout 输出
-	writers := []io.Writer{os.Stdout}
-
-	// 如果包含文件输出
-	if strings.Index(definition.Writers, "stdout") >= 0 {
-		// 查看文件路径是否正确
-		if filepath.IsAbs(definition.File) {
-			createFile("", definition.File)
-			filePath = filepath.Join("", definition.File)
-		} else {
-			createFile(os.Getenv("CHASSIS_HOME"), definition.File)
-			filePath = filepath.Join(os.Getenv("CHASSIS_HOME"), definition.File)
-		}
-
-		// 判断文件打开是否正常
-		var file io.Writer
-		f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-		if err != nil {
-			panic(err)
-		} else {
-			// 文件正常，则使用分割日志的功能
-			f.Close()
-			file = &lumberjack.Logger{
-				Filename:   filePath,
-				MaxSize:    definition.RotateSize,  // megabytes
-				MaxBackups: definition.BackupCount, // count
-				MaxAge:     definition.RotateDate,  //days
-				Compress:   definition.Compress,    // disabled by default
-			}
-			writers = append(writers, file)
-		}
-
+	var file io.Writer
+	fileName := def.File
+	maxAge := MaxAge
+	if def.MaxAge > 0 {
+		maxAge = def.MaxAge
+	}
+	maxBackup := MaxBackup
+	if def.MaxBackup > 0 {
+		maxBackup = def.MaxBackup
 	}
 
-	//同时写文件和屏幕
-	fileAndStdoutWriter := io.MultiWriter(writers...)
-	Logger.SetOutput(fileAndStdoutWriter)
+	// 分割策略
+	if def.RotatePolicy == "" || def.RotatePolicy == RotatePolicy { // 基于大小分割
+		rotateSize := RotateSize
+		if def.RotateSize > 0 {
+			rotateSize = def.RotateSize
+		}
+		file = &lumberjack.Logger{
+			Filename:   fileName,
+			MaxSize:    rotateSize,     // megabytes
+			MaxBackups: maxBackup,      // count
+			MaxAge:     maxAge,         //days
+			Compress:   FormatCompress, // disabled by default
+		}
+	} else { // 基于时间分割
+		rotateTime := RotateTime
+		fileNameAll := fileName + ".%Y%m%d%H%M"
+		if def.RotatePolicy == "daily" {
+			rotateTime = 24
+			fileNameAll = fileName + ".%Y%m%d"
+		}
 
-	return err
+		if maxBackup > 0 {
+			maxAge = 0
+		}
+
+		file, err = rotatelogs.New(
+			fileNameAll,
+			rotatelogs.WithLinkName(fileName),
+			rotatelogs.WithMaxAge(time.Duration(maxAge)*24*time.Hour),
+			rotatelogs.WithRotationTime(time.Duration(rotateTime)*time.Hour),
+			rotatelogs.WithRotationCount(uint(maxBackup)),
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 设置 output
+	fileAndStdoutWriter := io.MultiWriter(file, os.Stdout)
+	logger.SetOutput(fileAndStdoutWriter)
+	return nil
 }
 
 // Trace Trace
@@ -197,37 +205,4 @@ func Panic(args ...interface{}) {
 // Panicf Log with panic
 func Panicf(format string, args ...interface{}) {
 	Logger.Panicf(format, args...)
-}
-
-//createLogFile create log file
-func createFile(localPath, outputpath string) {
-	_, err := os.Stat(strings.Replace(filepath.Dir(filepath.Join(localPath, outputpath)), "\\", "/", -1))
-	if err != nil && os.IsNotExist(err) {
-		os.MkdirAll(strings.Replace(filepath.Dir(filepath.Join(localPath, outputpath)), "\\", "/", -1), os.ModePerm)
-	} else if err != nil {
-		panic(err)
-	}
-	f, err := os.OpenFile(strings.Replace(filepath.Join(localPath, outputpath), "\\", "/", -1), os.O_CREATE, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-}
-
-//DefaultDefinition 预定义
-func DefaultDefinition() *Cfg {
-	cfg := Cfg{
-		Writers:       "stdout",
-		Level:         "DEBUG",
-		File:          File,
-		FormatText:    true,
-		Color:         false,
-		RollingPolicy: RollingPolicySize,
-		RotateDate:    RotateDate,
-		RotateSize:    RotateSize,
-		BackupCount:   BackupCount,
-		Compress:      Compress,
-	}
-
-	return &cfg
 }
