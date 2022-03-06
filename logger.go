@@ -36,6 +36,13 @@ type Cfg struct {
 	FormatColor  bool   // 强制彩色
 	FormatReport bool   // 是否显示 calling method
 	// FormatCompress bool   // 是否压缩
+
+	Writers       string
+	Color         bool
+	RollingPolicy string
+	RotateDate    int
+	BackupCount   int
+	Compress      bool
 }
 
 // Logger is the global variable
@@ -54,13 +61,24 @@ func Init(def *Cfg) error {
 
 //InitWithConfig 初始化
 func InitWithConfig(def *Cfg) (*logrus.Logger, error) {
+	initConfig(def)
 	err := initWithConfig(Logger, def)
 	return Logger, err
 }
 
 //initConfig
 func initConfig(def *Cfg) {
+	if def.Color {
+		def.FormatColor = def.Color
+	}
 
+	if def.RollingPolicy != "" {
+		def.RotatePolicy = def.RollingPolicy
+	}
+
+	if def.BackupCount > 0 {
+		def.MaxBackup = def.BackupCount
+	}
 }
 
 func initWithConfig(logger *logrus.Logger, def *Cfg) error {
